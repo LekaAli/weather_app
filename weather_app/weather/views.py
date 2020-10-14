@@ -17,7 +17,6 @@ class WeatherViewSet(APIView):
 
     def get(self, request, *args, **kwargs):
         response = dict()
-        logged_in_user = self.request.user
         try:
             params = {
 				'url': WEATHER_URL,
@@ -72,8 +71,6 @@ def fetch_temp_readings(request):
            context['status_code'] = response.status_code
     else:
         context['message'] = 'missing required query params(i.e. city and/or period)'
-    if query_params.get('view_type', 'api') == 'web':
-        return render(request, 'index.html', context)
     return render(request, 'index.html', context)
 
 
@@ -124,7 +121,7 @@ def generate_bar_graph(plot_data, names):
     x = np.arange(len(plot_data.get('dt_txt')))
     width = 0.35
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10,8))
     for name_index in range(len(names)):
         _name = names[name_index]
         if _name == 'dt_txt':
@@ -135,16 +132,14 @@ def generate_bar_graph(plot_data, names):
         elif name_index == 2:
             x_add = 0
         else:
-            x_add = 0.35
+            x_add = 0.30
         plot[key] = ax.bar(x - x_add if name_index == 1 else x + x_add, plot_data.get(_name), width, label='{}'.format(_name))
 
     ax.set_ylabel('Readings')
     ax.set_title('Weather(Min, Max, Humidity)')
     ax.set_xticks(x)
-    # ax.set_xticklabels(plot_data.get('dt_txt'))
-    # ax.set_xticklabels(plot_data.get('dt_txt'), rotation='vertical')
+    ax.set_xticklabels(plot_data.get('dt_txt'), rotation='vertical')
     ax.legend()
-    map(lambda rect: autolabel(rect, ax), plot.values())
     fig.tight_layout()
     b64_string = io.BytesIO()
     plt.savefig(b64_string, format='png')
