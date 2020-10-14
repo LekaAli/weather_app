@@ -1,14 +1,47 @@
 from django.shortcuts import render
 import requests
-from requests import Response
-# from rest_framework.response import Response
-from rest_framework import status
 import matplotlib.pyplot as plt
 import numpy as np
 import io
 import base64
-
+from rest_framework.views import APIView, Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import JSONRenderer
 from weather_app.settings import WEATHER_URL, APP_ID
+
+
+class WeatherViewSet(APIView):
+
+    permission_classes = (IsAuthenticated, )
+    renderer_classes = (JSONRenderer, )
+
+    def get(self, request, *args, **kwargs):
+        response = dict()
+        logged_in_user = self.request.user
+        try:
+            params = {
+				'url': WEATHER_URL,
+				'params': {
+					'q': self.request.query_params.get('city', ''),
+					'units': 'metric',
+					'mode': 'json',
+					'APPID': APP_ID
+				}
+			}
+            _response = requests.get(**params)
+            img_hash, _plot_data = extract_graph_data(_response.json(), self.request.query_params.get('period', ''))
+            response.update({
+                'success': True,
+                'message': 'Weather forecast data retrieved successfully',
+                'data': _plot_data,
+                'bar_chart_img_string': img_hash
+            })
+        except Exception as ex:
+            response.update({
+                'success': False,
+                'message': str(ex)
+            })
+        return Response(response)
 
 
 def fetch_temp_readings(request):
@@ -33,7 +66,7 @@ def fetch_temp_readings(request):
         response = requests.get(**params)
         if response.status_code == 200:
            period = query_params.get('period').strip("\'")
-           img_hash = extract_graph_data(response.json(), period)
+           img_hash, _plot_data = extract_graph_data(response.json(), period)
            context['img_hash'] = str(img_hash)
         else:
            context['status_code'] = response.status_code
@@ -60,8 +93,9 @@ def extract_graph_data(weather_data_dict, period):
            continue
         plot_data.append(_data)
 
-    img_hash = prep_plot_data(plot_data, data_names)
-    return img_hash
+    img_hash, _plot_data = prep_plot_data(plot_data, data_names)
+    return img_hash, _plot_data
+
 
 def prep_plot_data(extracted_weather_data, names):
 
@@ -70,7 +104,7 @@ def prep_plot_data(extracted_weather_data, names):
         values = list(map(lambda data: data.get(name), extracted_weather_data))
         plot_data[name] = values
     img_hash = generate_bar_graph(plot_data, names)
-    return img_hash
+    return img_hash, plot_data
 
 
 def autolabel(rects, ax):
